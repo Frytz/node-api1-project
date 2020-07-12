@@ -2,6 +2,7 @@
 
 const express = require('express');
 const shortid = require('shortid');
+const db = require('./database.js');
 const cors = require('cors');
 // const hostname =  '127.0.0.1';
 const port = 5000;
@@ -17,18 +18,18 @@ const server = express();
 server.use(express.json());
 server.use(cors());
 
-let users = [
-        {
-            id: shortid(),
-            name: 'John Rossi',
-            bio: 'Web Developer',
-        },
-        {
-            id: shortid(),
-            name: 'Rosita Morejon',
-            bio: 'house wife',
-        },
-];
+// let users = [
+//         // {
+//         //     id: shortid(),
+//         //     name: 'John Rossi',
+//         //     bio: 'Web Developer',
+//         // },
+//         // {
+//         //     id: shortid(),
+//         //     name: 'Rosita Morejon',
+//         //     bio: 'house wife',
+//         // },
+// ];
 
 
 
@@ -38,55 +39,78 @@ server.get('/', (req, res) => {
 });
 
 server.post('/api/users', (req, res) => {
-    const userInfo = req.body;
-    userInfo.id = shortid.generate();
-        if (!userInfo.name || !userInfo.bio ) {
-            res.status(400).json({ errorMessage: "Please provide a name  and bio for the user" })
-        }
-       
-    if (userInfo) {
-        users.push(userInfo)
-         res.status(201).json(userInfo)
+    if (!req.body.name || !req.body.bio) {
+        return res.status(400).json({ message: "Need a user name and bio" })
+    };
+
+    let newUser = db.createUser({
+        name: req.body.name,
+        bio: req.body.bio
+    });
+
+    if (!newUser) {
+        return res.status(500).json({ message: "There was an error while saving the user to the database" });
     } else {
-        res.status(500).json({ errorMessage: "An error has occured while saving user to the database"})
+        return res.status(201).json(newUser);
     }
-//    res.status(200).json (users);
+
 });
 
 server.get('/api/users', (req, res) => {
-   const listUsers = req.body;
-   if (!listUsers) {
-       res.status(500).json({ errorMessage: "User info can not be retrieved"})
-   }
-    res.status(200).json(users)
+
+    const users = db.getUsers();
+
+    if (!users) {
+        return res.status(500).json({ message: "The users information could not be retrieved." });
+    } else {
+        return res.status(200).json(users);
+    }
 });
 
 
 server.get ('/api/users/:id', (req, res) => {
-let { id } = req.params.id;
-// console.log(id, 'req.params.id');
-const userInfo = users.find( ({userId}) => userId === id);
-if(userInfo){res.status(200).json(userInfo)}
-else (
-    res.status(404).json ({message: "user id not found"})
-)
+
+    const user = db.getUserById(req.params.id);
+
+    if (!user) {
+        return res.status(404).json({ message: "The user with the specified ID does not exist." });
+    } else {
+        return res.status(200).json(user);
+    }
 })
+
+server.put('/api/users/:id', (req, res) => {
+    const user = db.getUserById(req.params.id);
+
+    if (user && req.body.name && req.body.bio) {
+        let newUser = db.updateUser(user.id, {
+            name: req.body.name,
+            bio: req.body.bio
+        });
+        res.status(200).json(newUser);
+    }
+    if (!user) {
+        return res.status(404).json({ message: "The user with the specified ID does not exist." });
+    }
+    if (!req.body.name || !req.body.bio) {
+        return res.status(400).json({ message: "Need a user name and bio" });
+    }
+    else {
+        return res.status(500).json({ errorMessage: "The user information could not be modified." });
+    }
+});
 
 server.delete('/api/users/:id', (req, res) => {
-    const { id } = req.params;
-    const found = users.find(user => user.id === id);
+    const user = db.getUserById(req.params.id);
 
-    if (found) {
-        users = users.filter(user => user.id !== id)
-        res.status(200).json(users)
+    if (user) {
+        db.deleteUser(user.id);
+        res.status(204).end();
     } else {
-        res.status(500).json({ errorMessage: "The user could not be removed" })
+        return res.status(404).json({ message: "The user with the specified ID does not exist." });
     }
+});
 
-    if (!found) {
-        res.status(404).json({ message: "The user with the specified ID does not exist" })
-    }
-})
 
 server.put('/api/users/:id', (req, res) => {
     const { id, name, bio } = req.params;
